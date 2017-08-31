@@ -21,13 +21,19 @@ namespace Maggot.Dialogs
         public static readonly string RequestTokenKey = "RequestToken";
         public static readonly string AuthTokenKey = "AuthToken";
         public static readonly string FormContentKey = "FormContent";
-
         private const string JiraBaseUrl = "https://mapmynumber.atlassian.net";
+
+        protected JiraAdapter jiraAdapter;
 
         private async Task MessageReceivedAsync(IDialogContext context, IAwaitable<IMessageActivity> argument)
         {
             var msg = await (argument);
             RequestToken requestToken = null;
+
+            if(jiraAdapter == null)
+            {
+                jiraAdapter = new JiraAdapter(JiraBaseUrl);
+            }
 
             if (msg.Text.StartsWith("BotAuthorized:") && context.PrivateConversationData.TryGetValue(RequestTokenKey, out requestToken))
             {
@@ -37,9 +43,9 @@ namespace Maggot.Dialogs
                     // is encoded in the message.Text
                     var oauthToken = JiraAuthHelper.DecryptString(msg.Text.Remove(0, "BotAuthorized:".Length).Trim());
 
-                    var accessToken = JiraAuthHelper.GetAccessToken(JiraBaseUrl, requestToken.OAuthToken);
+                    var accessToken = jiraAdapter.GetAccessToken(requestToken.OAuthToken);
 
-                    await context.PostAsync(JiraAdapter.GetProjectList(JiraBaseUrl, accessToken)); 
+                    await context.PostAsync(jiraAdapter.GetProjectList(accessToken)[0].key); 
 
                     context.Wait(this.MessageReceivedAsync);
 
@@ -71,7 +77,7 @@ namespace Maggot.Dialogs
                 // sending the sigin card with JIRA login url
                 var reply = context.MakeMessage();
 
-                var requestToken = JiraAuthHelper.GetRequestToken(JiraBaseUrl);
+                var requestToken = jiraAdapter.GetRequestToken();
 
                 var jiraLoginUrl = JiraAuthHelper.GetJiraOAuthUrl(JiraBaseUrl, requestToken);
 

@@ -1,4 +1,5 @@
-﻿using Maggot.Model;
+﻿using Atlassian.Jira.Remote;
+using Maggot.Model;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -32,71 +33,46 @@ namespace Maggot.Common.OAuthHelper
             return jiraBaseUrl + AuthorizeUrlPart + "?" + "oauth_token=" + token.OAuthToken;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="jiraBaseUrl"></param>
-        /// <returns></returns>
-        public static RequestToken GetRequestToken(string jiraBaseUrl)
-        {
-            string response;
-            using (HttpClient client = new HttpClient())
-            {
-                var result = client.PostAsync((jiraBaseUrl + RequestTokenUrlPart), new FormUrlEncodedContent(GetFormContent(string.Empty, jiraBaseUrl + RequestTokenUrlPart)));
-                response = result.Result.Content.ReadAsStringAsync().Result;
-            }
-
-            return ParseObject<RequestToken>(response);
-
-            //oauth_token=K5QFzzFJOIlSr0ooZQ4R8GFa1wj5OHyY&oauth_token_secret=4NY0cMJpOrUbLOmRZLxf45LJcVlbO6yI
-
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="jiraBaseUrl"></param>
-        /// <param name="oauthToken"></param>
-        /// <returns></returns>
-        public static Model.AccessToken GetAccessToken(string jiraBaseUrl, string oauthToken)
-        {
-
-            string response;
-            var content = GetFormContent(oauthToken, jiraBaseUrl + AccessTokenUrl);
-
-            using (HttpClient client = new HttpClient())
-            {
-                var result = client.PostAsync(jiraBaseUrl + AccessTokenUrl, new FormUrlEncodedContent(content));
-                response = result.Result.Content.ReadAsStringAsync().Result;
-            }
-
-            return ParseObject<AccessToken>(response);
-
-            //oauth_token=Kbx3Xt7bh8zFpjz5pQbPC4StJXGP7ohA&oauth_token_secret=sQkm7ulnqR5UEux055h2H8BAVqcqHZmd&oauth_expires_in=157680000&oauth_session_handle=arg8vdXR8fgf6hzbcOpfB7fRI0B4l5to&oauth_authorization_expires_in=160272000
-        }
-
-        public static string MakeGetRequest(AccessToken token, string url)
+        public static T MakeGetRequest<T>(AccessToken token, string url)
         {
             string response;
             var content = GetFormContent(token.OAuthToken, url, "GET");
 
             using (HttpClient client = new HttpClient())
             {
-                //var result = client.PostAsync(url, new FormUrlEncodedContent(content));
-                //response = result.Result.Content.ReadAsStringAsync().Result;
-
-                //client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.OAuthToken);
-
-                //var result = client.GetAsync(url + "?oauth_token=" + token.OAuthToken);
-                //response = result.Result.Content.ReadAsStringAsync().Result;
-
                 var result = client.GetAsync(url + ConvertToQueryString(content));
                 response = result.Result.Content.ReadAsStringAsync().Result;
-
-
+                
             }
 
-            return response;
+            return JsonConvert.DeserializeObject<T>(response.ToString());
+        }
+
+        public static T MakePostRequest<T>(AccessToken token, string url)
+        {
+            string response;
+            var content = GetFormContent(token.OAuthToken, url);
+
+            using (HttpClient client = new HttpClient())
+            {
+                var result = client.PostAsync(url, new FormUrlEncodedContent(content));
+                response = result.Result.Content.ReadAsStringAsync().Result;
+            }
+
+            return JsonConvert.DeserializeObject<T>(response.ToString());
+        }
+        
+        public static T MakeOAuthRequest<T>(string url, string token = "")
+        {
+            string response;
+
+            using (HttpClient client = new HttpClient())
+            {
+                var result = client.PostAsync(url, new FormUrlEncodedContent(GetFormContent(token, url)));
+                response = result.Result.Content.ReadAsStringAsync().Result;
+            }
+
+            return ParseObject<T>(response);
         }
 
         public static string EncryptString(string plainText)
