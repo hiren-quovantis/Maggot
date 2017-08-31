@@ -10,6 +10,8 @@ using Maggot.Common.OAuthHelper;
 using static Maggot.Common.OAuthHelper.JiraAuthHelper;
 using System.Net.Http;
 using Maggot.Model;
+using Atlassian.Jira;
+using Maggot.Adapter;
 
 namespace Maggot.Dialogs
 {
@@ -37,7 +39,12 @@ namespace Maggot.Dialogs
 
                     var accessToken = JiraAuthHelper.GetAccessToken(JiraBaseUrl, requestToken.OAuthToken);
 
+                    await context.PostAsync(JiraAdapter.GetProjectList(JiraBaseUrl, accessToken)); 
+
                     context.Wait(this.MessageReceivedAsync);
+
+                    // Jira.CreateRestClient()
+
                 }
                 catch (Exception e)
                 {
