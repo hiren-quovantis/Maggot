@@ -154,6 +154,7 @@
     <Compile Include="Adapter\JiraAdapter.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Common\OAuthHelper\JiraAuthHelper.cs" />
+    <Compile Include="Common\UIHelper\ProjectUIHelper.cs" />
     <Compile Include="Controllers\JiraOAuthController.cs" />
     <Compile Include="Controllers\MessagesController.cs" />
     <Compile Include="Dialogs\JiraOAuthDialog.cs" />

@@ -12,6 +12,7 @@ using System.Net.Http;
 using Maggot.Model;
 using Atlassian.Jira;
 using Maggot.Adapter;
+using Maggot.Common.UIHelper;
 
 namespace Maggot.Dialogs
 {
@@ -19,6 +20,7 @@ namespace Maggot.Dialogs
     public class JiraOAuthDialog : IDialog<string>
     {
         public static readonly string RequestTokenKey = "RequestToken";
+        public static readonly string AccessTokenKey = "AccessToken";
         public static readonly string AuthTokenKey = "AuthToken";
         public static readonly string FormContentKey = "FormContent";
         private const string JiraBaseUrl = "https://mapmynumber.atlassian.net";
@@ -29,6 +31,7 @@ namespace Maggot.Dialogs
         {
             var msg = await (argument);
             RequestToken requestToken = null;
+            AccessToken accessToken = null;
 
             if(jiraAdapter == null)
             {
@@ -43,9 +46,11 @@ namespace Maggot.Dialogs
                     // is encoded in the message.Text
                     var oauthToken = JiraAuthHelper.DecryptString(msg.Text.Remove(0, "BotAuthorized:".Length).Trim());
 
-                    var accessToken = jiraAdapter.GetAccessToken(requestToken.OAuthToken);
+                    var tempAccessToken = jiraAdapter.GetAccessToken(requestToken.OAuthToken);
 
-                    await context.PostAsync(jiraAdapter.GetProjectList(accessToken)[0].key); 
+                    context.PrivateConversationData.SetValue(AccessTokenKey, tempAccessToken);
+
+                    await context.PostAsync("Authentication Successfull !! What can I do for you today ?");
 
                     context.Wait(this.MessageReceivedAsync);
 
@@ -56,8 +61,27 @@ namespace Maggot.Dialogs
                 {
 
                 }
+            }
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            {
+                var projects = jiraAdapter.GetProjectList(accessToken);
+                
+                if(projects.Length == 0)
+                {
+                    await context.PostAsync("You dont' have any projects assigned yet. Please contact your admin.");
+                }
+                if (projects.Length == 1)
+                {
+                    await context.PostAsync($"You have been assigned {projects.First().name} project. What would you wish to do further: ");
+                }
+                else
+                {
+                    var reply = context.MakeMessage();
+                    reply.Attachments = ProjectUIHelper.GetProjectListCard(projects);
+                    await context.PostAsync(reply);
+                }
 
-                // context.Done<object>(null);
+                context.Wait(MessageReceivedAsync);
             }
             else
             {
