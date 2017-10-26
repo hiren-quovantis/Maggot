@@ -34,6 +34,17 @@ namespace Maggot.Adapter
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="token"></param>
+        /// <param name="projectId"></param>
+        /// <returns></returns>
+        public RemoteProject GetProjectDetails(AccessToken token, int projectId)
+        {
+            return JiraAuthHelper.MakeGetRequest<RemoteProject>(token, this.baseUrl + "/rest/api/2/project/"+projectId.ToString());
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <returns></returns>
         public RequestToken GetRequestToken()
         {
