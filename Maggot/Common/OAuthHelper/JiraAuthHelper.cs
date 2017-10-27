@@ -33,22 +33,28 @@ namespace Maggot.Common.OAuthHelper
             return jiraBaseUrl + AuthorizeUrlPart + "?" + "oauth_token=" + token.OAuthToken;
         }
 
-        public static T MakeGetRequest<T>(AccessToken token, string url)
+        public static T MakeGetRequest<T>(AccessToken token, string url, List<KeyValuePair<string, string>> extraParameter = null)
         {
             string response;
-            var content = GetFormContent(token.OAuthToken, url, "GET");
+            var content = GetFormContent(token.OAuthToken, url, extraParameter, "GET");
+
+            if (extraParameter != null && extraParameter.Count > 0)
+            {
+                //    var nonceKey = content.Find(a => a.Key == "oauth_nonce");
+                //    content.Remove(nonceKey);
+                content.AddRange(extraParameter);
+            }
 
             using (HttpClient client = new HttpClient())
             {
                 var result = client.GetAsync(url + ConvertToQueryString(content));
                 response = result.Result.Content.ReadAsStringAsync().Result;
-                
             }
 
             return JsonConvert.DeserializeObject<T>(response.ToString());
         }
 
-        public static T MakePostRequest<T>(AccessToken token, string url)
+        public static T MakePostRequest<T>(AccessToken token, string url, List<KeyValuePair<string, string>> extraParameter = null)
         {
             string response;
             var content = GetFormContent(token.OAuthToken, url);
@@ -61,7 +67,7 @@ namespace Maggot.Common.OAuthHelper
 
             return JsonConvert.DeserializeObject<T>(response.ToString());
         }
-        
+
         public static T MakeOAuthRequest<T>(string url, string token = "")
         {
             string response;
@@ -86,7 +92,7 @@ namespace Maggot.Common.OAuthHelper
         }
 
         #region " Private Helpers "
-        
+
         public static string ConvertToQueryString(IEnumerable<KeyValuePair<string, string>> parameters)
         {
             if (!parameters.Any())
@@ -267,7 +273,7 @@ namespace Maggot.Common.OAuthHelper
             return System.Text.Encoding.UTF8.GetString(base64EncodedBytes);
         }
 
-        public static List<KeyValuePair<string, string>> GetFormContent(string oauthToken, string url, string requestType = "POST", string consumerKey = "maggot-bot")
+        public static List<KeyValuePair<string, string>> GetFormContent(string oauthToken, string url, List<KeyValuePair<string, string>> extraParameter = null, string requestType = "POST", string consumerKey = "maggot-bot")
         {
             TimeSpan ts = DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, 0);
             string timestamp = Convert.ToInt64(ts.TotalSeconds).ToString();
@@ -275,6 +281,7 @@ namespace Maggot.Common.OAuthHelper
             string nonce = new Random().Next(123400, 9999999).ToString();
 
             System.Collections.Generic.List<string> parameters = new System.Collections.Generic.List<string>();
+            System.Collections.Generic.List<string> searchParameters = new System.Collections.Generic.List<string>();
 
             //parameters.Add(("oauth_callback") +  "=" + (CallbackUrl + "?state=abbccd"));
             parameters.Add(("oauth_consumer_key") + "=" + (consumerKey));
@@ -287,12 +294,30 @@ namespace Maggot.Common.OAuthHelper
                 parameters.Add(("oauth_token") + "=" + (oauthToken));
             }
 
+            //if (extraParameter != null && extraParameter.Count > 0)
+            //{
+            //   foreach(var item in extraParameter)
+            //    {
+            //        searchParameters.Add(item.Key + "=" + item.Value);
+            //    }
+            //}
+
             parameters.Sort();
             string parametersStr = string.Join("&", parameters.ToArray());
 
             string baseStr = requestType + "&" +
                              UrlEncode(url) + "&" +
                              UrlEncode(parametersStr);
+
+            if (extraParameter != null && extraParameter.Count > 0)
+            {
+                foreach (var item in extraParameter)
+                {
+                    searchParameters.Add(item.Key + "=" + item.Value);
+                }
+
+                baseStr = baseStr + UrlEncode("?"+searchParameters[0].ToString());
+            }
 
             string hash = GenerateSignature(baseStr);
 

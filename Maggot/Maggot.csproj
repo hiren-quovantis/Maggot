@@ -154,6 +154,7 @@
     <Compile Include="Adapter\JiraAdapter.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Common\Enum\Enum.cs" />
+    <Compile Include="Common\Helper\Helper.cs" />
     <Compile Include="Common\OAuthHelper\JiraAuthHelper.cs" />
     <Compile Include="Common\UIHelper\IssueUIHelper.cs" />
     <Compile Include="Common\UIHelper\ProjectUIHelper.cs" />

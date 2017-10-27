@@ -29,5 +29,24 @@ namespace Maggot.Common.UIHelper
 
             return attachment;
         }
+
+        public static IList<Microsoft.Bot.Connector.Attachment> DisplayIssueDetails(RemoteIssue[] issues)
+        {
+            IList<Microsoft.Bot.Connector.Attachment> attachment = new List<Microsoft.Bot.Connector.Attachment>();
+
+            var heroCard = new HeroCard
+            {
+                Title = "Select a Issue to proceed"
+            };
+
+            for (int i = 0; i < issues.Length; i++)
+            {
+                heroCard.Buttons.Add(new CardAction(ActionTypes.ImBack, issues[i].key +" " +issues[i].description, value: ($"{issues[i].id}")));
+            }
+
+            attachment.Add(heroCard.ToAttachment());
+
+            return attachment;
+        }
     }
 }

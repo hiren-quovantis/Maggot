@@ -38,7 +38,7 @@ namespace Maggot.Common.UIHelper
             };
 
             heroCard.Buttons.Add(new CardAction(ActionTypes.ImBack, "Project details", value: ($"Project details")));
-            heroCard.Buttons.Add(new CardAction(ActionTypes.ImBack, "List all Issues", value: ($"List all issues")));
+            heroCard.Buttons.Add(new CardAction(ActionTypes.ImBack, "List all Versions", value: ($"List all issues")));
 
             attachment.Add(heroCard.ToAttachment());
 

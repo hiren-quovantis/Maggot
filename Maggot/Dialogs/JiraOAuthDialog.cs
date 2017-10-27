@@ -118,10 +118,10 @@ namespace Maggot.Dialogs
             {
                 await JiraProject(context, msgText);
             }
-            //else if(!string.IsNullOrEmpty(msgText))
-            //{
-            //    await context.PostAsync("Uh! There's nothing like that, please try again.");
-            //}     
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && !string.IsNullOrEmpty(msgText))
+            {
+                await context.PostAsync("Uh! There's nothing like that, please try again.");
+            }
             else
             {
                 await LogIn(context);
@@ -149,6 +149,16 @@ namespace Maggot.Dialogs
                 {
                     var reply = context.MakeMessage();
                     reply.Attachments = ProjectUIHelper.DisplayProjectDetails(projectDetails);
+                    await context.PostAsync(reply);
+                }
+            }
+            else if (ProjectId != 0 && msg.Equals("list all issues") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            {
+                var issueDetails = jiraAdapter.GetProjectIssues(accessToken, ProjectId);
+                if (issueDetails != null)
+                {
+                    var reply = context.MakeMessage();
+                    reply.Attachments = IssueUIHelper.DisplayIssueDetails(issueDetails);
                     await context.PostAsync(reply);
                 }
             }

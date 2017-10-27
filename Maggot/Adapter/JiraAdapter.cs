@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Web;
+using Maggot.Common.Helper;
 
 namespace Maggot.Adapter
 {
@@ -40,6 +41,12 @@ namespace Maggot.Adapter
         public RemoteProject GetProjectDetails(AccessToken token, int projectId)
         {
             return JiraAuthHelper.MakeGetRequest<RemoteProject>(token, this.baseUrl + "/rest/api/2/project/"+projectId.ToString());
+        }
+
+        public RemoteIssue[] GetProjectIssues(AccessToken token, int projectId)
+        {
+            var extraParam = Helper.GetSearchJQLParameters(projectId);
+            return JiraAuthHelper.MakeGetRequest<RemoteIssue[]>(token, this.baseUrl + "/rest/api/2/search", extraParam);
         }
 
         /// <summary>
