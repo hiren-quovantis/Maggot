@@ -13,6 +13,7 @@ using Maggot.Model;
 using Atlassian.Jira;
 using Maggot.Adapter;
 using Maggot.Common.UIHelper;
+using Maggot.Common.Enum;
 
 namespace Maggot.Dialogs
 {
@@ -25,11 +26,16 @@ namespace Maggot.Dialogs
         public static readonly string FormContentKey = "FormContent";
         private const string JiraBaseUrl = "https://mapmynumber.atlassian.net";
 
+        protected ContextType DialogContextState;
+        private static int ProjectId = 0;
+        protected List<int> AvailableProjects = new List<int>();
+
         protected JiraAdapter jiraAdapter;
 
         private async Task MessageReceivedAsync(IDialogContext context, IAwaitable<IMessageActivity> argument)
         {
             var msg = await (argument);
+            var msgText = msg.Text.ToLower();
             RequestToken requestToken = null;
             AccessToken accessToken = null;
 
@@ -38,7 +44,7 @@ namespace Maggot.Dialogs
                 jiraAdapter = new JiraAdapter(JiraBaseUrl);
             }
 
-            if (msg.Text.StartsWith("BotAuthorized:") && context.PrivateConversationData.TryGetValue(RequestTokenKey, out requestToken))
+            if (msgText.StartsWith("botauthorized:") && context.PrivateConversationData.TryGetValue(RequestTokenKey, out requestToken))
             {
                 try
                 {
@@ -52,6 +58,10 @@ namespace Maggot.Dialogs
 
                     await context.PostAsync("Authentication Successfull !! What can I do for you today ?");
 
+                    var reply = context.MakeMessage();
+                    reply.Attachments = ProjectUIHelper.GetInitialMenu();
+                    await context.PostAsync(reply);
+
                     context.Wait(this.MessageReceivedAsync);
 
                     // Jira.CreateRestClient()
@@ -62,30 +72,99 @@ namespace Maggot.Dialogs
 
                 }
             }
-            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && msgText.Equals("project selected"))
             {
                 var projects = jiraAdapter.GetProjectList(accessToken);
-                
-                if(projects.Length == 0)
+
+                if (projects.Length == 0)
                 {
-                    await context.PostAsync("You dont' have any projects assigned yet. Please contact your admin.");
+                    await context.PostAsync("Oop's you dont' have any projects assigned yet. Please contact your admin.");
                 }
                 if (projects.Length == 1)
                 {
                     await context.PostAsync($"You have been assigned {projects.First().name} project. What would you wish to do further: ");
+                    DialogContextState = ContextType.Project;
+                    AvailableProjects.Add(Convert.ToInt32(projects.First().id));
                 }
-                else
+                if (projects.Length > 1)
                 {
                     var reply = context.MakeMessage();
                     reply.Attachments = ProjectUIHelper.GetProjectListCard(projects);
                     await context.PostAsync(reply);
+
+                    DialogContextState = ContextType.Project;
+                    foreach(var item in projects)
+                    {
+                        AvailableProjects.Add(Convert.ToInt32(item.id));
+                    }
                 }
 
                 context.Wait(MessageReceivedAsync);
             }
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && msgText.StartsWith("issue selected"))
+            {
+                var reply = context.MakeMessage();
+                reply.Attachments = IssueUIHelper.GetActionItemForIssue();
+                await context.PostAsync(reply);
+            }
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && (msgText.Equals("Clear") || msgText.StartsWith("hi")))
+            {
+                await context.PostAsync("Hello! What can I do for you today?");
+                var reply = context.MakeMessage();
+                reply.Attachments = ProjectUIHelper.GetInitialMenu();
+                await context.PostAsync(reply);
+            }
+            else if (DialogContextState == ContextType.Project && AvailableProjects.Count > 0 && !string.IsNullOrEmpty(msg.Text))
+            {
+                await JiraProject(context, msgText);
+            }
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && !string.IsNullOrEmpty(msgText))
+            {
+                await context.PostAsync("Uh! There's nothing like that, please try again.");
+            }
             else
             {
                 await LogIn(context);
+            }
+        }
+
+        private async Task JiraProject(IDialogContext context, string msg)
+        {
+            AccessToken accessToken = null;
+            int projectId; 
+            int.TryParse(msg, out projectId);
+
+            if (AvailableProjects.Contains(projectId))
+            {
+                var reply = context.MakeMessage();
+                reply.Attachments = ProjectUIHelper.GetActionItemForProject();
+                await context.PostAsync(reply);
+                ProjectId = projectId;
+            }
+
+            else if(ProjectId != 0 && msg.Equals("project details") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            {
+                var projectDetails = jiraAdapter.GetProjectDetails(accessToken, ProjectId);
+                if(projectDetails != null)
+                {
+                    var reply = context.MakeMessage();
+                    reply.Attachments = ProjectUIHelper.DisplayProjectDetails(projectDetails);
+                    await context.PostAsync(reply);
+                }
+            }
+            else if (ProjectId != 0 && msg.Equals("list all issues") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            {
+                var issueDetails = jiraAdapter.GetProjectIssues(accessToken, ProjectId);
+                if (issueDetails != null)
+                {
+                    var reply = context.MakeMessage();
+                    reply.Attachments = IssueUIHelper.DisplayIssueDetails(issueDetails);
+                    await context.PostAsync(reply);
+                }
+            }
+            else
+            {
+                await context.PostAsync("Uh ho, didn't saw that coming! Please try again");
             }
         }
 
