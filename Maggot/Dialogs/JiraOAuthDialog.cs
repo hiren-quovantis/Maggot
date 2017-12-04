@@ -24,10 +24,17 @@ namespace Maggot.Dialogs
         public static readonly string AccessTokenKey = "AccessToken";
         public static readonly string AuthTokenKey = "AuthToken";
         public static readonly string FormContentKey = "FormContent";
+
+        public static readonly string DialogStateKey = "DialogContextState";
+        public static readonly string IssueContextKey = "IssueContext";
+        public static readonly string ProjectIdKey = "ProjectId";
+
         private const string JiraBaseUrl = "https://mapmynumber.atlassian.net";
 
         protected ContextType DialogContextState;
-        private static int ProjectId = 0;
+        protected IssueContext SelectedIssueContext;
+        private int ProjectId = 0;
+        private string IssueKey = string.Empty;
         protected List<int> AvailableProjects = new List<int>();
 
         protected JiraAdapter jiraAdapter;
@@ -74,6 +81,7 @@ namespace Maggot.Dialogs
             }
             else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && msgText.Equals("project selected"))
             {
+                context.PrivateConversationData.TryGetValue(DialogStateKey, out DialogContextState);
                 var projects = jiraAdapter.GetProjectList(accessToken);
 
                 if (projects.Length == 0)
@@ -84,6 +92,7 @@ namespace Maggot.Dialogs
                 {
                     await context.PostAsync($"You have been assigned {projects.First().name} project. What would you wish to do further: ");
                     DialogContextState = ContextType.Project;
+                    context.PrivateConversationData.SetValue(DialogStateKey, DialogContextState);
                     AvailableProjects.Add(Convert.ToInt32(projects.First().id));
                 }
                 if (projects.Length > 1)
@@ -93,7 +102,8 @@ namespace Maggot.Dialogs
                     await context.PostAsync(reply);
 
                     DialogContextState = ContextType.Project;
-                    foreach(var item in projects)
+                    context.PrivateConversationData.SetValue(DialogStateKey, DialogContextState);
+                    foreach (var item in projects)
                     {
                         AvailableProjects.Add(Convert.ToInt32(item.id));
                     }
@@ -105,9 +115,11 @@ namespace Maggot.Dialogs
             {
                 var reply = context.MakeMessage();
                 reply.Attachments = IssueUIHelper.GetActionItemForIssue();
+                DialogContextState = ContextType.Issue;
+                context.PrivateConversationData.SetValue(DialogStateKey, DialogContextState);
                 await context.PostAsync(reply);
             }
-            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && (msgText.Equals("Clear") || msgText.StartsWith("hi")))
+            else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && (msgText.Equals("Clear") || (msgText.StartsWith("hi") && msgText.Substring(msgText.IndexOf("hi")+2,1) == string.Empty)))
             {
                 await context.PostAsync("Hello! What can I do for you today?");
                 var reply = context.MakeMessage();
@@ -117,6 +129,10 @@ namespace Maggot.Dialogs
             else if (DialogContextState == ContextType.Project && AvailableProjects.Count > 0 && !string.IsNullOrEmpty(msg.Text))
             {
                 await JiraProject(context, msgText);
+            }
+            else if (DialogContextState == ContextType.Issue && !string.IsNullOrEmpty(msg.Text))
+            {
+                await JiraIssue(context, msgText);
             }
             else if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken) && !string.IsNullOrEmpty(msgText))
             {
@@ -128,21 +144,65 @@ namespace Maggot.Dialogs
             }
         }
 
+        private async Task JiraIssue(IDialogContext context, string msg)
+        {
+            AccessToken accessToken = null;
+
+            if (SelectedIssueContext == IssueContext.Assign)
+            {
+                if (!string.IsNullOrEmpty(IssueKey) && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+                {
+                    Dictionary<string, string> dictParameters = new Dictionary<string, string>();
+                    dictParameters.Add("name", msg);
+
+                    if (jiraAdapter.AssignIssue(accessToken, IssueKey, dictParameters))
+                    {
+                        await context.PostAsync("Issue assigned succesfully to: " + msg);
+                    }
+                    else
+                    {
+                        await context.PostAsync("An error occurred while assigning issue to: " + msg);
+                    }
+                }
+                if (context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken)) {
+
+                    if (!string.IsNullOrEmpty(msg) && jiraAdapter.GetIssue(accessToken, msg))
+                    {
+                        IssueKey = msg;
+                        await context.PostAsync("Please provide assignee name");
+                    }
+                    else
+                    {
+                        await context.PostAsync("Invalid issue id/key, please enter again");
+                    }
+                }   
+            }
+
+            if (msg.Equals("assign issue") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            {
+                SelectedIssueContext = IssueContext.Assign;
+                await context.PostAsync("Please provide issue id");
+            }
+        }
+
         private async Task JiraProject(IDialogContext context, string msg)
         {
             AccessToken accessToken = null;
-            int projectId; 
-            int.TryParse(msg, out projectId);
+            int projectId;      
 
-            if (AvailableProjects.Contains(projectId))
+            if(!context.PrivateConversationData.TryGetValue(ProjectIdKey, out ProjectId))
             {
-                var reply = context.MakeMessage();
-                reply.Attachments = ProjectUIHelper.GetActionItemForProject();
-                await context.PostAsync(reply);
-                ProjectId = projectId;
+                if (int.TryParse(msg, out projectId) && AvailableProjects.Contains(projectId))
+                {
+                    var reply = context.MakeMessage();
+                    reply.Attachments = ProjectUIHelper.GetActionItemForProject();
+                    await context.PostAsync(reply);
+                    ProjectId = projectId;
+                    context.PrivateConversationData.SetValue(ProjectIdKey, ProjectId);
+                }
             }
 
-            else if(ProjectId != 0 && msg.Equals("project details") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
+            if (ProjectId != 0 && msg.Equals("project details") && context.PrivateConversationData.TryGetValue(AccessTokenKey, out accessToken))
             {
                 var projectDetails = jiraAdapter.GetProjectDetails(accessToken, ProjectId);
                 if(projectDetails != null)
@@ -162,10 +222,10 @@ namespace Maggot.Dialogs
                     await context.PostAsync(reply);
                 }
             }
-            else
-            {
-                await context.PostAsync("Uh ho, didn't saw that coming! Please try again");
-            }
+            //else
+            //{
+            //    await context.PostAsync("Uh ho, didn't saw that coming! Please try again");
+            //}
         }
 
         private async Task LogIn(IDialogContext context)

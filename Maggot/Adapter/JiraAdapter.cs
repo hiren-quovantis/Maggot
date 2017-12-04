@@ -46,7 +46,27 @@ namespace Maggot.Adapter
         public RemoteIssue[] GetProjectIssues(AccessToken token, int projectId)
         {
             var extraParam = Helper.GetSearchJQLParameters(projectId);
-            return JiraAuthHelper.MakeGetRequest<RemoteIssue[]>(token, this.baseUrl + "/rest/api/2/search", extraParam);
+            var issueList = JiraAuthHelper.MakePostRequest<IssueList>(token, this.baseUrl + "/rest/api/2/search", extraParam);
+            return issueList.issues;
+        }
+
+        public bool AssignIssue(AccessToken token, string issueId, Dictionary<string,string> dictParameters)
+        {
+            var extraParam = Helper.GetParameters(dictParameters);
+            object obj = JiraAuthHelper.MakePutRequest<bool>(token, this.baseUrl + "/rest/api/2/issue/"+issueId, extraParam);
+            if (obj == null)
+                return true;
+
+            return false;
+        }
+
+        public bool GetIssue(AccessToken token, string issueId)
+        {
+            RemoteIssue issue = JiraAuthHelper.MakeGetRequest<RemoteIssue>(token, this.baseUrl + "/rest/api/2/issue/" + issueId);
+            if (issue != null)
+                return true;
+
+            return false;
         }
 
         /// <summary>

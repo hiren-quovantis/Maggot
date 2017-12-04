@@ -11,4 +11,13 @@ namespace Maggot.Common.Enum
         Issue = 2,
         User = 3
     };
+
+    public enum IssueContext
+    {
+        Create=1,
+        View=2,
+        Edit=3,
+        Delete=4,
+        Assign=5
+    };
 }

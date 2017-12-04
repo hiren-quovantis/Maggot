@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Web;
+using Maggot.Common.Helper;
 
 namespace Maggot.Common.OAuthHelper
 {
@@ -38,13 +39,6 @@ namespace Maggot.Common.OAuthHelper
             string response;
             var content = GetFormContent(token.OAuthToken, url, extraParameter, "GET");
 
-            if (extraParameter != null && extraParameter.Count > 0)
-            {
-                //    var nonceKey = content.Find(a => a.Key == "oauth_nonce");
-                //    content.Remove(nonceKey);
-                content.AddRange(extraParameter);
-            }
-
             using (HttpClient client = new HttpClient())
             {
                 var result = client.GetAsync(url + ConvertToQueryString(content));
@@ -59,13 +53,42 @@ namespace Maggot.Common.OAuthHelper
             string response;
             var content = GetFormContent(token.OAuthToken, url);
 
+            HttpRequestMessage requestMessage = new HttpRequestMessage(HttpMethod.Post, url + ConvertToQueryString(content));
+
+
+            if (extraParameter != null && extraParameter.Count > 0)
+            {
+                requestMessage.Content = new StringContent("{\"jql\":\""+extraParameter.Where(a=>a.Key == "jql").FirstOrDefault().Value+"\"}", Encoding.UTF8, "application/json");
+            }
+
             using (HttpClient client = new HttpClient())
             {
-                var result = client.PostAsync(url, new FormUrlEncodedContent(content));
+                var result = client.SendAsync(requestMessage);
                 response = result.Result.Content.ReadAsStringAsync().Result;
             }
 
             return JsonConvert.DeserializeObject<T>(response.ToString());
+        }
+
+        public static object MakePutRequest<T>(AccessToken token, string url, List<KeyValuePair<string, string>> extraParameter = null)
+        {
+            string response;
+            var content = GetFormContent(token.OAuthToken, url,null,"PUT");
+
+            HttpRequestMessage requestMessage = new HttpRequestMessage(HttpMethod.Put,url + ConvertToQueryString(content));
+
+            if (extraParameter != null && extraParameter.Count > 0)
+            {
+                requestMessage.Content = new StringContent("{ \"fields\" : { \"assignee\" :{ \"name\" : \""+extraParameter.Where(a=>a.Key == "name").FirstOrDefault().Value+"\"}  } }", Encoding.UTF8, "application/json");
+            }
+
+            using (HttpClient client = new HttpClient())
+            {
+                var result = client.SendAsync(requestMessage);
+                response = result.Result.Content.ReadAsStringAsync().Result;
+            }
+
+            return JsonConvert.DeserializeObject<object>(response.ToString());
         }
 
         public static T MakeOAuthRequest<T>(string url, string token = "")
@@ -281,7 +304,6 @@ namespace Maggot.Common.OAuthHelper
             string nonce = new Random().Next(123400, 9999999).ToString();
 
             System.Collections.Generic.List<string> parameters = new System.Collections.Generic.List<string>();
-            System.Collections.Generic.List<string> searchParameters = new System.Collections.Generic.List<string>();
 
             //parameters.Add(("oauth_callback") +  "=" + (CallbackUrl + "?state=abbccd"));
             parameters.Add(("oauth_consumer_key") + "=" + (consumerKey));
@@ -294,30 +316,12 @@ namespace Maggot.Common.OAuthHelper
                 parameters.Add(("oauth_token") + "=" + (oauthToken));
             }
 
-            //if (extraParameter != null && extraParameter.Count > 0)
-            //{
-            //   foreach(var item in extraParameter)
-            //    {
-            //        searchParameters.Add(item.Key + "=" + item.Value);
-            //    }
-            //}
-
             parameters.Sort();
             string parametersStr = string.Join("&", parameters.ToArray());
 
             string baseStr = requestType + "&" +
                              UrlEncode(url) + "&" +
                              UrlEncode(parametersStr);
-
-            if (extraParameter != null && extraParameter.Count > 0)
-            {
-                foreach (var item in extraParameter)
-                {
-                    searchParameters.Add(item.Key + "=" + item.Value);
-                }
-
-                baseStr = baseStr + UrlEncode("?"+searchParameters[0].ToString());
-            }
 
             string hash = GenerateSignature(baseStr);
 
